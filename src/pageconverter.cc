@@ -530,6 +530,7 @@ void PageConverterPrivate::printPage(bool ok) {
 		}
  	}
 	outline->printOutline(printer);
+	outline->dumpOutline();
  	painter->end();
 #endif
 	if (settings.out == "-" && lout != "/dev/stdout") {
