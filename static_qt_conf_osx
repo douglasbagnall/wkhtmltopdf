@@ -27,11 +27,10 @@
 -no-xrandr
 -no-xrender
 -no-mitshm
--no-xinput
 -no-xkb
 -no-glib
 -no-openvg
 -no-opengl
 -no-xsync
 -no-javascript-jit
--no-svg
+#-no-egl

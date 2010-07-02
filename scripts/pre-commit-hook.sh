@@ -1,3 +1,5 @@
+#!/bin/bash
+#
 # Copyright 2010 wkhtmltopdf authors
 #
 # This file is part of wkhtmltopdf.
@@ -15,7 +17,4 @@
 # You should have received a copy of the GNU General Public License
 # along with wkhtmltopdf.  If not, see <http:#www.gnu.org/licenses/>.
 
-TEMPLATE = subdirs
-
-CONFIG += ordered
-SUBDIRS = src/pdf src/image
+git diff --staged --name-only HEAD | xargs -d '\n' python scripts/sourcefix.py || exit 1
