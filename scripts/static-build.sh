@@ -35,6 +35,7 @@ openssl-0.9.8h-1-bin.zip "
 #freetype-2.3.5-1-bin.zip \
 #freetype-2.3.5-1-lib.zip "
 QTBRANCH=
+J="$((1 + $(cat /proc/cpuinfo | grep -c processor)))"
 
 function usage() {
 	echo "Usage: $0 [OPTIONS] target"
@@ -161,19 +162,31 @@ if ! cmp conf conf_new; then
   do_configure
 fi
 
-if ! make -j3 -q; then
+if ! make -j${J} -q; then
    echo "Building QT"
-   (make -j3 && make install) || (make distclean; do_configure && make -j3 && make install) || exit 1
+   (make -j${J} && make install) || (make distclean; do_configure && make -j${J} && make install) || exit 1
 fi
 cd ../wkhtmltopdf
 
 echo "Building wkhtmltopdfe"
-(make distclean; ../qt/bin/qmake && make -j3) || exit 1
+(make distclean; ../qt/bin/qmake && make -j${J}) || exit 1
 strip ./bin/wkhtmltopdf || exit 1
 strip ./bin/wkhtmltoimage || exit 1
 EOF
     chmod +x build.sh
 }
+
+function packandcopylinux() {
+    WK=${BUILD}/linux-$1/build/wkhtmltopdf
+    rm -rf  ${BASE}/bin/wkhtmltopdf-$1  ${BASE}/bin/wkhtmltoimage-$1 ${BASE}/bin/libwkhtmltopdf-$1.tar.lzma
+    ${BUILD}/${UPX}/upx --best ${WK}/bin/wkhtmltopdf -o ${BASE}/bin/wkhtmltopdf-$1 || exit 1
+    ${BUILD}/${UPX}/upx --best ${WK}/bin/wkhtmltoimage -o ${BASE}/bin/wkhtmltoimage-$1 || exit 1
+    rm -rf ${WK}/lib
+    mkdir -p ${WK}/lib
+    cp ${WK}/bin/libwkhtmltox*.so ${WK}/lib || exit 1
+    cd ${WK} && tar -c --lzma -f ${BASE}/bin/libwkhtmltox-$1.tar.lzma lib include examples/Makefile examples/pdf_c_api.c
+}
+
 
 function build_linux_local() {
     cd ${BUILD}
@@ -182,14 +195,13 @@ function build_linux_local() {
     setup_build linux
     ./build.sh || exit 1
     cd ..
-    ${BUILD}/${UPX}/upx --best ${BUILD}/linux-local/wkhtmltopdf/bin/wkhtmltopdf -o ${BASE}/bin/wkhtmltopdf || exit 1
-    ${BUILD}/${UPX}/upx --best ${BUILD}/linux-local/wkhtmltopdf/bin/wkhtmltoimage -o ${BASE}/bin/wkhtmltoimage || exit 1
+    packandcopylinux local
 }
 
 function setup_chroot() {
     if [ ! -f linux-$2/strapped ]; then
 	sudo rm -rf linux-$2
-	(sudo debootstrap --arch=$2 --variant=buildd $1 ./linux-$2 http://ftp.us.debian.org/debian && sudo touch linux-$2/strapped) || exit 1
+	(sudo debootstrap --arch=$2 --variant=buildd $1 ./linux-$2 http://ftp.us.debian.org/debian/ && sudo touch linux-$2/strapped) || exit 1
     fi
     if [ ! -d linux-$2/build ]; then
 	sudo mkdir -p linux-$2/build || exit 1
@@ -197,7 +209,7 @@ function setup_chroot() {
     fi
 
     if [ ! -f linux-$2/installed ]; then
-	echo -e "deb http://ftp.debian.org $1 main non-free contrib\ndeb-src http://ftp.debian.org $1 main non-free contrib" | sudo tee linux-$2/etc/apt/sources.list || exit 1
+	echo -e "deb http://ftp.us.debian.org/debian/ $1 main non-free contrib\ndeb-src http://ftp.us.debian.org/debian/ $1 main non-free contrib" | sudo tee linux-$2/etc/apt/sources.list || exit 1
 	sudo chroot linux-$2 apt-get -y update || exit 1
 	sudo chroot linux-$2 apt-get -y build-dep libqt4-core && sudo touch linux-$2/installed || exit 1
     fi
@@ -207,7 +219,7 @@ function setup_chroot() {
 
 function build_linux_chroot() {
     cd ${BUILD}
-    setup_chroot etch $1
+    setup_chroot lenny $1
     cd linux-$1/build
     setup_build linux
     if [  "$1" == 'i386' ]; then
@@ -215,8 +227,7 @@ function build_linux_chroot() {
     else
 	sudo chroot ${BUILD}/linux-$1/ /build/buildw.sh || exit 1
     fi
-    ${BUILD}/${UPX}/upx --best ${BUILD}/linux-$1/build/wkhtmltopdf/bin/wkhtmltopdf -o ${BASE}/bin/wkhtmltopdf-$1 || exit 1
-    ${BUILD}/${UPX}/upx --best ${BUILD}/linux-$1/build/wkhtmltopdf/bin/wkhtmltoimage -o ${BASE}/bin/wkhtmltoimage-$1 || exit 1
+    packandcopylinux $1
 }
 
 function build_windows() {
@@ -262,8 +273,8 @@ EOF
 		QTDIR=. bin/syncqt || exit 1
 		(yes | wine configure.exe -I "C:\qts\include" -I "C:\mingw32\include\freetype2" `cat conf_new` -prefix "C:\qt" && cp conf_new conf) || exit 1
     fi
-    if ! wine mingw32-make -j3 -q; then
-		wine mingw32-make -j3 || exit 1
+    if ! wine mingw32-make -j${J} -q; then
+		wine mingw32-make -j${J} || exit 1
 		wine mingw32-make install || exit 1
     fi
 
@@ -271,12 +282,17 @@ EOF
     wine mingw32-make dist-clean
     wine ../qt/bin/qmake.exe wkhtmltopdf.pro -o Makefile -spec win32-g++ || exit 1
     wine mingw32-make clean || exit 1
-    wine mingw32-make -j3 || exit 1
+    wine mingw32-make -j${J} || exit 1
     wine strip.exe bin/wkhtmltopdf.exe || exit 1
     wine strip.exe bin/wkhtmltoimage.exe || exit 1
-    rm -rf ${BASE}/wkhtmltopdf.exe
+
+    rm -rf  ${BASE}/bin/wkhtmltopdf.exe  ${BASE}/bin/wkhtmltoimage.exe ${BASE}/bin/libwkhtmltox.zip
     ${BUILD}/${UPX}/upx --best bin/wkhtmltopdf.exe -o ${BASE}/bin/wkhtmltopdf.exe || exit 1
     ${BUILD}/${UPX}/upx --best bin/wkhtmltoimage.exe -o ${BASE}/bin/wkhtmltoimage.exe || exit 1
+    rm -rf lib
+    mkdir -p lib
+    cp bin/wkhtmltox*.dll lib || exit 1
+    zip -9 ${BASE}/bin/libwkhtmltox.zip  lib include examples/Makefile examples/pdf_c_api.c
 }
 
 case "$1" in

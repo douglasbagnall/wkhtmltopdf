@@ -52,7 +52,13 @@ echo "About to release $v"
 read -p "Are you sure you are ready: " N
 [ "$N" != "YES" ] && exit
 
-echo "DEFINES += MAJOR_VERSION=$1 MINOR_VERSION=$2 PATCH_VERSION=$3 BUILD=\"$4\"" > version.pri
+echo "MAJOR_VERSION=$1
+MINOR_VERSION=$2
+PATCH_VERSION=$3
+BUILD=\"$4\"
+
+DEFINES += MAJOR_VERSION=\$\$MAJOR_VERSION MINOR_VERSION=\$\$MINOR_VERSION PATCH_VERSION=\$\$PATCH_VERSION BUILD=\$\$BUILD" > version.pri
+
 HEAD="$(git log --pretty=oneline  -n 1 | sed -e 's/ .*//')"
 git commit -m "TEMPORERY DO NOT COMMIT $v" version.pri
 
@@ -82,15 +88,18 @@ mkdir "release-$v"
 
 git checkout-index --prefix="./release-$v/wkhtmltopdf-$v/" -a
 wget "http://code.google.com/p/wkhtmltopdf/wiki/ChangeLog" -qO - | sed -nre 's/.*<p>CHANGELOGBEGIN[ ]*<\/p>(.*)<p>CHANGELOGEND.*/\1/p' | html2text -utf8 -nobs | sed -e 's/ //g' > "./release-$v/wkhtmltopdf-$v/changelog"
-tar -cjvf "release-$v/wkhtmltopdf-$v.tar.bz2" -C "release-$v" "wkhtmltopdf-$v"
+tar -c --lzma -vf "release-$v/wkhtmltopdf-$v.tar.lzma" -C "release-$v" "wkhtmltopdf-$v"
 cp bin/wkhtmltopdf.exe "release-$v/wkhtmltopdf.exe"
 cp bin/wkhtmltoimage.exe "release-$v/wkhtmltoimage.exe"
+cp bin/libwkhtmltox.zip "release-$v/libwkhtmltox-$v.zip"
+cp bin/libwkhtmltox-i386.tar.lzma "release-$v/libwkhtmltox-$v-i386.tar.lzma"
+cp bin/libwkhtmltox-amd64.tar.lzma "release-$v/libwkhtmltox-$v-amd64.tar.lzma"
 m4 -D "WKVERSION=$v" wkhtmltopdf.nsi.m4 > "release-$v/wkhtmltopdf.nsi"
 cd bin
-tar -cjvf "../release-$v/wkhtmltopdf-$v-static-i386.tar.bz2" wkhtmltopdf-i386
-tar -cjvf "../release-$v/wkhtmltopdf-$v-static-amd64.tar.bz2" wkhtmltopdf-amd64
-tar -cjvf "../release-$v/wkhtmltoimage-$v-static-i386.tar.bz2" wkhtmltoimage-i386
-tar -cjvf "../release-$v/wkhtmltoimage-$v-static-amd64.tar.bz2" wkhtmltoimage-amd64
+tar -c --lzma -vf "../release-$v/wkhtmltopdf-$v-static-i386.tar.lzma" wkhtmltopdf-i386
+tar -c --lzma -vf "../release-$v/wkhtmltopdf-$v-static-amd64.tar.lzma" wkhtmltopdf-amd64
+tar -c --lzma -vf "../release-$v/wkhtmltoimage-$v-static-i386.tar.lzma" wkhtmltoimage-i386
+tar -c --lzma -vf "../release-$v/wkhtmltoimage-$v-static-amd64.tar.lzma" wkhtmltoimage-amd64
 cd "../release-$v"
 for x in libgcc_s_dw2-1.dll ssleay32.dll libeay32.dll mingwm10.dll EnvVarUpdate.nsh; do
 	[ -f "$x" ] && continue

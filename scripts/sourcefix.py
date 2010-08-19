@@ -38,6 +38,7 @@ def includesort(x):
 changes=False
 progname="wkhtmltopdf"
 for path in argv[1:]:
+	if path.split("/")[0] == "include": continue
 	try:
 		data = file(path).read()
 	except:
@@ -50,7 +51,7 @@ for path in argv[1:]:
 	ext = path.rsplit(".",2)[-1]
 	header = ""
 	cc = "//"
-	if ext in ["hh","h","c","cc","cpp","inl"]:
+	if ext in ["hh","h","c","cc","cpp","inl", "inc"]:
 		header += """// -*- mode: c++; tab-width: 4; indent-tabs-mode: t; eval: (progn (c-set-style "stroustrup") (c-set-offset 'innamespace 0)); -*-
 // vi:set ts=4 sts=4 sw=4 noet :
 //
@@ -71,7 +72,7 @@ for path in argv[1:]:
 // This file is part of %(name)s.
 //
 // %(name)s is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
+// it under the terms of the GNU %(lesser)sGeneral Public License as published by
 // the Free Software Foundation, either version 3 of the License, or
 // (at your option) any later version.
 //
@@ -80,13 +81,18 @@ for path in argv[1:]:
 // MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 // GNU General Public License for more details.
 //
-// You should have received a copy of the GNU General Public License
+// You should have received a copy of the GNU %(lesser)sGeneral Public License
 // along with %(name)s.  If not, see <http://www.gnu.org/licenses/>.
 
-"""%{"years": (", ".join(sorted(list(years)))),"name":progname}
+"""%{"years": (", ".join(sorted(list(years)))),"name":progname, "lesser": ("Lesser " if path.startswith("src/lib/") else "")}
 
-	#Strip away generated header
-	hexp = re.compile("^(%s[^\\n]*\\n)*"%(cc))
+	if ext in ["c", "h", "inc"]:
+		header = "/*" + header[2:-1] + " */\n\n"
+		cc = " *"
+		hexp = re.compile(r"^/\*([^*]*(\*[^/]))*[^*]*\*/[ \t\n]*");
+	else:
+		#Strip away generated header
+		hexp = re.compile("^(%s[^\\n]*\\n)*"%(cc))
 	ndata = hexp.sub("", data,1)
 	ndata = ws.sub("\n", ndata)+"\n"
 	if ext in ["hh","h","inl"]:
@@ -113,7 +119,7 @@ for path in argv[1:]:
 		ndata = """#ifndef __%s__
 #define __%s__
 %s
-#endif //__%s__"""%(n,n,ndata,n)
+#endif %s__%s__%s"""%(n,n,ndata, "//" if ext != "h" else "/*", n, "" if ext != "h" else "*/")
 	ndata = header.replace("//",cc)+ndata+"\n"
 	if ndata != data:
 		for x in difflib.unified_diff(data.split("\n"),ndata.split("\n"), "a/"+path, "b/"+path):
